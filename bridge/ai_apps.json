@@ -1,0 +1,29 @@
+{
+  "_comment": "奶娃桌宠 - AI 软件监控清单。type=codex 读 Codex 会话事件（精确）；type=process 按进程名采样 CPU/网络（推断 thinking/streaming/idle）。processes 里的进程名不区分大小写；软件没装时自动跳过。per-app 可选参数：cpu_threshold（CPU阈值，默认6，IDE建议10）、detect_title_change（是否检测窗口标题变化，IDE切文件频繁变化建议false）、detect_title_keyword（是否检测标题关键词，默认true）。想加/删软件直接编辑本文件，保存后重启生效。",
+  "apps": [
+    { "id": "codex",     "name": "Codex",        "type": "codex" },
+    { "id": "doubao",    "name": "豆包",         "type": "process", "processes": ["Doubao"] },
+    { "id": "yuanbao",   "name": "腾讯元宝",      "type": "process", "processes": ["Yuanbao", "yuanbao"] },
+    { "id": "claude",    "name": "Claude",       "type": "process", "processes": ["Claude", "claude"] },
+    { "id": "gemini",    "name": "Gemini",       "type": "process", "processes": ["Gemini"] },
+    { "id": "deepseek",  "name": "DeepSeek",     "type": "process", "processes": ["DeepSeek"] },
+    { "id": "kimi",      "name": "Kimi",         "type": "process", "processes": ["Kimi"] },
+    { "id": "tongyi",    "name": "通义千问",      "type": "process", "processes": ["Tongyi", "qianwen", "QianWen"] },
+    { "id": "zhipu",     "name": "智谱清言",      "type": "process", "processes": ["ChatGLM", "Zhipu", "zhipu"] },
+    { "id": "wenxin",    "name": "文心一言",      "type": "process", "processes": ["wenxin", "Wenxin", "BaiduWenxin"] },
+    { "id": "xinghuo",   "name": "讯飞星火",      "type": "process", "processes": ["Spark", "iFlytek", "Xinghuo"] },
+    { "id": "jimeng",    "name": "即梦",          "type": "process", "processes": ["Dreamina", "jimeng", "Jimeng"] },
+    { "id": "jianying",  "name": "剪映",          "type": "process", "processes": ["JianyingPro"] },
+    { "id": "cursor",    "name": "Cursor",       "type": "process", "processes": ["Cursor"], "cpu_threshold": 10, "detect_title_change": false },
+    { "id": "vscode",    "name": "VSCode",       "type": "process", "processes": ["Code"], "cpu_threshold": 10, "detect_title_change": false },
+    { "id": "trae",      "name": "Trae",         "type": "process", "processes": ["Trae"], "cpu_threshold": 10, "detect_title_change": false },
+    { "id": "windsurf",  "name": "Windsurf",     "type": "process", "processes": ["Windsurf"], "cpu_threshold": 10, "detect_title_change": false },
+    { "id": "chatbox",   "name": "Chatbox",      "type": "process", "processes": ["Chatbox"] },
+    { "id": "cherry",    "name": "Cherry Studio","type": "process", "processes": ["Cherry Studio"] },
+    { "id": "lmstudio",  "name": "LM Studio",    "type": "process", "processes": ["LM Studio"] },
+    { "id": "ollama",    "name": "Ollama",       "type": "process", "processes": ["ollama"] },
+    { "id": "jan",       "name": "Jan",          "type": "process", "processes": ["jan"] },
+    { "id": "perplexity","name": "Perplexity",   "type": "process", "processes": ["Perplexity"] },
+    { "id": "copilot",   "name": "Copilot",      "type": "process", "processes": ["copilot", "WindowsCopilot"] }
+  ]
+}

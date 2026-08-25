@@ -1,0 +1,27 @@
+{
+  "name": "pet-nailong",
+  "version": "2.0.1",
+  "displayName": "奶娃桌宠（原生窗口版）",
+  "description": "Agent 状态感知的桌宠：表情包框架 + 透明桌面原生窗口（PyQt5），由 DSH 真实事件驱动，托盘常驻、可散步/拖拽/切换表情包",
+  "author": "nailong-fan",
+  "license": "MIT",
+  "type": "hybrid",
+  "entry": {
+    "host": "host/index.js",
+    "client": "client/index.js"
+  },
+  "styles": ["client/style.css"],
+  "permissions": {
+    "events": [
+      "agent/status",
+      "agent/error",
+      "tools/result",
+      "llm/stream",
+      "agent/inbox/inserted"
+    ],
+    "services": ["fs", "harness", "process"]
+  },
+  "assets": "packs/",
+  "keywords": ["桌宠", "奶龙", "宠物", "agent状态", "表情包", "透明窗口"],
+  "homepage": "https://github.com/Jackjimmy/nailong-pet"
+}

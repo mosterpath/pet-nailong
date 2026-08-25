@@ -1,0 +1,21 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 构建产物（exe/zip 作为 GitHub Releases 附件，不入库）----
+dist/
+build/
+_pyinstaller/
+pet-nailong-all.exe
+pet-nailong-all.zip
+
+# ---- 本地备份与临时文件 ----
+_backup_state_migration_20260825/
+
+# ---- 本地快捷方式与截图（不入库）----
+*.lnk
+codex_screenshot.jpg
+screenshot.jpg

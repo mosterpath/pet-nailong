@@ -1,0 +1,58 @@
+{
+  "id": "variants",
+  "name": "奶龙变体版",
+  "emoji": "🦖",
+  "version": "1.0.0",
+  "author": "nailong-fan",
+  "laugh": {
+    "gif": "laugh.gif",
+    "mp3": "laugh.mp3"
+  },
+  "states": {
+    "idle": [
+      "09-variants/03-deadpan.png"
+    ],
+    "thinking": [
+      "09-variants/02-peace-tongue.png"
+    ],
+    "tool_call": [
+      "09-variants/01-crawl-laugh.png",
+      "09-variants/04-green-smile.png"
+    ],
+    "streaming": [
+      "09-variants/04-green-smile.png"
+    ],
+    "task_done": [
+      "09-variants/01-crawl-laugh.png",
+      "09-variants/04-green-smile.png"
+    ],
+    "error": [
+      "09-variants/01-crawl-laugh.png",
+      "09-variants/03-deadpan.png"
+    ]
+  },
+  "bubbles": {
+    "idle": "发呆中…",
+    "thinking": "咦？",
+    "tool_call": "咋回事？",
+    "streaming": "点头点头",
+    "task_done": "笑死我了",
+    "error": "无语了…",
+    "user_msg": "又有活？"
+  },
+  "clickBubbles": [
+    "笑死我了",
+    "看我口吐芬芳",
+    "又在摸鱼？",
+    "🦖出击！",
+    "嘿嘿",
+    "你好呀"
+  ],
+  "thinkingLines": [
+    "（这波操作看不懂）",
+    "（假装很忙）",
+    "（人类又双叒来了）",
+    "（我要划水！）",
+    "（思考个锤子）"
+  ]
+}

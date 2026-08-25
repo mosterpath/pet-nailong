@@ -1,0 +1,14 @@
+{
+  "name": "pet-nailong",
+  "version": "2.0.1",
+  "description": "Agent 状态感知的桌宠，表情包框架 + 透明桌面原生窗口（PyQt5）",
+  "main": "host/index.js",
+  "scripts": {
+    "dev": "echo '开发模式：在 Cordis 中加载本插件目录即可热重载'",
+    "build": "powershell -ExecutionPolicy Bypass -File build.ps1",
+    "demo": "python helper/main.py --demo"
+  },
+  "keywords": ["cordis-plugin", "桌宠", "奶龙", "宠物", "表情包", "pyqt5"],
+  "author": "nailong-fan",
+  "license": "MIT"
+}

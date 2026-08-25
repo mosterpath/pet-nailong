@@ -1,0 +1,66 @@
+{
+  "id": "nailong",
+  "name": "奶龙猎奇版",
+  "emoji": "🐲",
+  "version": "1.0.0",
+  "author": "nailong-fan",
+  "laugh": {
+    "gif": "laugh.gif",
+    "mp3": "laugh.mp3",
+    "duration_ms": 8000
+  },
+  "states": {
+    "idle": [
+      "03-idle/01-half-lidded.png"
+    ],
+    "thinking": [
+      "04-think/01-green-eye-chin.png"
+    ],
+    "tool_call": [
+      "05-shock/01-green-eye-kick.png",
+      "05-shock/02-green-eye-headgrab.png"
+    ],
+    "streaming": [
+      "06-serious/01-green-eye-arms-crossed.png"
+    ],
+    "task_done": [
+      "01-laugh/01-classic-reference.png",
+      "01-laugh/02-slim-body.png",
+      "01-laugh/03-pointing.png",
+      "01-laugh/04-head-hands.png",
+      "01-laugh/05-head-hands-alt.png"
+    ],
+    "error": [
+      "01-laugh/01-classic-reference.png",
+      "01-laugh/02-slim-body.png",
+      "01-laugh/03-pointing.png",
+      "01-laugh/04-head-hands.png",
+      "01-laugh/05-head-hands-alt.png"
+    ]
+  },
+  "bubbles": {
+    "idle": "摸鱼中…",
+    "thinking": "嗯…",
+    "tool_call": "这是在干嘛？",
+    "streaming": "认真听",
+    "task_done": "哈哈哈哈",
+    "error": "又崩了…",
+    "user_msg": "来活了！"
+  },
+  "clickBubbles": [
+    "哈哈哈哈",
+    "看我干嘛",
+    "又在摸鱼？",
+    "奶龙出击！",
+    "嘿嘿",
+    "你好呀"
+  ],
+  "thinkingLines": [
+    "（这题有点难…）",
+    "（假装在思考）",
+    "（人类又在催我了）",
+    "（摸鱼被发现了）",
+    "（先想个借口）",
+    "（今天的工资…哦不对，今天的小鱼干）"
+  ]
+}

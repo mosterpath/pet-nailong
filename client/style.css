@@ -1,0 +1,215 @@
+/* ============================================================
+   奶娃桌宠 - 样式
+   ============================================================ */
+
+/* 容器：全屏浮动层，默认右下角 */
+.pet-nailong-container {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 99999;
+  width: 140px;
+  pointer-events: none; /* 容器本身点击穿透 */
+  user-select: none;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+/* 宠物本体：接管点击 */
+.pet-nailong-container .pet-nailong-img {
+  display: block;
+  width: 140px;
+  height: auto;
+  pointer-events: auto;
+  cursor: grab;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  transition: transform 0.2s ease;
+}
+
+.pet-nailong-container .pet-nailong-img:active {
+  cursor: grabbing;
+}
+
+/* 呼吸待机：轻微缩放 */
+.pet-nailong-container .pet-nailong-img {
+  animation: pet-breathe 3s ease-in-out infinite;
+}
+
+@keyframes pet-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+/* 点击弹跳 */
+.pet-nailong-container .pet-nailong-img.bounce {
+  animation: pet-bounce 0.3s ease;
+}
+
+@keyframes pet-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15) translateY(-8px); }
+  100% { transform: scale(1); }
+}
+
+/* 大笑状态：GIF本身已动态，不额外抖动 */
+.pet-nailong-container .pet-nailong-img.state-laugh {
+  animation: pet-breathe 3s ease-in-out infinite;
+}
+
+@keyframes pet-laugh {
+  0%, 100% { transform: rotate(-3deg) scale(1); }
+  25% { transform: rotate(3deg) scale(1.05); }
+  50% { transform: rotate(-2deg) scale(1.02); }
+  75% { transform: rotate(2deg) scale(1.05); }
+}
+
+/* 大哭状态：抖动 + 眼泪滑落 */
+.pet-nailong-container .pet-nailong-img.state-cry {
+  animation: pet-cry 0.3s ease-in-out infinite;
+}
+
+@keyframes pet-cry {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* ============================================================
+   气泡
+   ============================================================ */
+.pet-nailong-container .pet-nailong-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  animation: bubble-pop 0.2s ease;
+}
+
+/* 气泡小三角 */
+.pet-nailong-container .pet-nailong-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #fff;
+}
+
+@keyframes bubble-pop {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+/* ============================================================
+   右键菜单
+   ============================================================ */
+.pet-nailong-container .pet-nailong-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-width: 120px;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.pet-nailong-container .pet-nailong-menu .menu-item {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pet-nailong-container .pet-nailong-menu .menu-item:hover {
+  background: #f0f0f0;
+}
+
+/* 菜单分隔线 */
+.pet-nailong-container .pet-nailong-menu .menu-separator {
+  height: 1px;
+  background: #e5e5e5;
+  margin: 4px 0;
+}
+
+/* 表情包子菜单 */
+.pet-nailong-container .pet-nailong-menu .menu-submenu {
+  position: relative;
+}
+
+.pet-nailong-container .pet-nailong-menu .pack-list {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -8px;
+  margin-left: 2px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-width: 130px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pet-nailong-container .pet-nailong-menu .menu-submenu:hover .pack-list {
+  display: block;
+}
+
+.pet-nailong-container .pet-nailong-menu .pack-list .pack-item {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.pet-nailong-container .pet-nailong-menu .pack-list .pack-item:hover {
+  background: #f0f0f0;
+}
+
+.pet-nailong-container .pet-nailong-menu .pack-list .pack-item.active {
+  background: #667eea;
+  color: #fff;
+}
+
+/* ============================================================
+   状态：缩小 / 静音 / 隐藏
+   ============================================================ */
+.pet-nailong-container.minimized {
+  width: 48px;
+}
+
+.pet-nailong-container.minimized .pet-nailong-img {
+  width: 48px;
+}
+
+.pet-nailong-container.minimized .pet-nailong-bubble,
+.pet-nailong-container.minimized .pet-nailong-menu {
+  display: none !important;
+}
+
+.pet-nailong-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.5);
+}
+
+/* 静音标记（可选视觉提示） */
+.pet-nailong-container.muted .pet-nailong-img::after {
+  content: '🔇';
+}
