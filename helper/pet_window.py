@@ -464,6 +464,7 @@ class BubbleWidget(QWidget):
         self._base_font_size = 10
         self._font = QFont("Microsoft YaHei", self._base_font_size)
         self._scale = 1.0
+        self._max_width = 240  # 由外部设置为宠物窗口宽度-8
         self._typewriter_timer = QTimer(self)
         self._typewriter_timer.timeout.connect(self._type_next)
         self._typewriter_full = ""
@@ -518,25 +519,15 @@ class BubbleWidget(QWidget):
     def _update_geometry(self):
         fm = QFontMetrics(self._font)
         text = self._displayed or " "
-        max_w = int(240 * self._scale)
-        lines = []
-        for paragraph in text.split("\n"):
-            if fm.horizontalAdvance(paragraph) <= max_w:
-                lines.append(paragraph)
-            else:
-                cur = ""
-                for ch in paragraph:
-                    if fm.horizontalAdvance(cur + ch) > max_w and cur:
-                        lines.append(cur)
-                        cur = ch
-                    else:
-                        cur += ch
-                if cur:
-                    lines.append(cur)
-        text_w = max(fm.horizontalAdvance(l) for l in lines) if lines else 10
-        text_h = fm.height() * len(lines)
+        max_w = max(60, int(self._max_width * self._scale))
+        # 用 boundingRect + TextWordWrap 计算实际尺寸，与 paintEvent 绘制方式完全一致
+        # 避免手动换行和 Qt 换行算法不一致导致文字被截断
+        text_rect = fm.boundingRect(0, 0, max_w, 10000,
+                                    Qt.TextWordWrap | Qt.AlignTop | Qt.AlignHCenter, text)
+        text_w = text_rect.width()
+        text_h = text_rect.height()
         w = text_w + self._padding_x * 2
-        h = text_h + self._padding_y * 2 + self._tail_height
+        h = text_h + self._padding_y * 2 + self._tail_height + 2  # +2px 缓冲防圆角裁剪
         # 打字机模式下锁定最终尺寸
         if self._final_size:
             w, h = self._final_size
