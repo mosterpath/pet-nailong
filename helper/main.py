@@ -18,12 +18,15 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 
 import protocol
+
+from state_table import (STATE_ERROR, STATE_IDLE, STATE_STREAMING, STATE_TASK_DONE,
+                         STATE_THINKING, STATE_TOOL_CALL, STATE_USER_MSG)
 from packs import PackLoader
 from pet_window import PetWindow
 from tray import TrayIcon
 
-DEMO_STATES = ["idle", "thinking", "tool_call", "streaming", "task_done",
-               "error", "user_msg", "idle"]
+DEMO_STATES = [STATE_IDLE, STATE_THINKING, STATE_TOOL_CALL, STATE_STREAMING,
+               STATE_TASK_DONE, STATE_ERROR, STATE_USER_MSG, STATE_IDLE]
 
 
 class Bridge(QObject):

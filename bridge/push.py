@@ -18,9 +18,19 @@
 """
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+
+# 允许从源码目录直接运行（bridge/ 与 helper/ 同级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_HELPER = os.path.join(os.path.dirname(_HERE), "helper")
+if _HELPER not in sys.path:
+    sys.path.insert(0, _HELPER)
+
+from state_table import (STATE_ERROR, STATE_IDLE, STATE_STREAMING, STATE_TASK_DONE,
+                         STATE_THINKING, STATE_TOOL_CALL, STATE_USER_MSG)
 
 DEFAULT_URL = "http://127.0.0.1:18923"
 
@@ -59,10 +69,11 @@ def main():
     sub = parser.add_subparsers(dest="cmd", metavar="命令")
 
     # 快捷状态命令
-    state_commands = ["idle", "thinking", "tool_call", "streaming", "task_done", "error", "user_msg", "running"]
+    state_commands = [STATE_IDLE, STATE_THINKING, STATE_TOOL_CALL, STATE_STREAMING,
+    STATE_TASK_DONE, STATE_ERROR, STATE_USER_MSG, "running"]
     for s in state_commands:
         p = sub.add_parser(s, help=f"推送状态: {s}")
-        if s == "tool_call":
+        if s == STATE_TOOL_CALL:
             p.add_argument("--name", default="", help="工具名称（显示在状态卡上）")
 
     # 完整状态更新
@@ -97,7 +108,7 @@ def main():
     url = args.url
 
     if args.cmd in state_commands:
-        if args.cmd == "tool_call" and args.name:
+        if args.cmd == STATE_TOOL_CALL and args.name:
             # 带工具名 → 走工具调用开始接口（增加计数 + 标记本轮用过工具）
             result = _post(url, "/api/tool/start", {"name": args.name})
         else:

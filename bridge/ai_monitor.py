@@ -47,6 +47,15 @@ from auto_monitor import StateInferrer
 # 系统事件监控（电量/深夜/久坐/音乐）
 from system_events import SystemMonitor
 
+# 允许从源码目录直接运行（bridge/ 与 helper/ 同级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_HELPER = os.path.join(os.path.dirname(_HERE), "helper")
+if _HELPER not in sys.path:
+    sys.path.insert(0, _HELPER)
+
+from state_table import (STATE_ERROR, STATE_IDLE, STATE_STREAMING, STATE_TASK_DONE,
+                         STATE_THINKING, STATE_TOOL_CALL, STATE_USER_MSG)
+
 # ============================================================
 # 默认配置
 # ============================================================
@@ -99,12 +108,12 @@ WINDOW_TITLE_ACTIVE_KEYWORDS = [
 ]
 
 
-def _get_process_window_titles(pids):
-    """枚举指定 PID 集合的所有可见顶层窗口标题，返回标题列表。"""
+def _get_process_window_titles_map(pids):
+    """枚举指定 PID 集合的所有可见顶层窗口标题，返回 {pid: [标题]}。"""
     if not _HAS_WIN32 or not pids:
-        return []
+        return {}
     pid_set = set(pids)
-    found = []
+    found = {}
     user32 = ctypes.windll.user32
 
     @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -123,7 +132,7 @@ def _get_process_window_titles(pids):
             user32.GetWindowTextW(hwnd, buf, length + 1)
             title = buf.value.strip()
             if title:
-                found.append(title)
+                found.setdefault(pid.value, []).append(title)
         except Exception:
             pass
         return True
@@ -202,24 +211,24 @@ class CodexEventParser:
         if typ == "response_item":
             pt = payload.get("type")
             if pt == "reasoning":
-                return {"ts": ts, "state": "thinking", "tool": ""}
+                return {"ts": ts, "state": STATE_THINKING, "tool": ""}
             if pt == "function_call":
-                return {"ts": ts, "state": "tool_call", "tool": payload.get("name", "")}
+                return {"ts": ts, "state": STATE_TOOL_CALL, "tool": payload.get("name", "")}
             if pt == "function_call_output":
                 # 工具结束：交给下一条 reasoning / message 决定，不直接推送
                 return None
             if pt == "message":
                 role = payload.get("role")
                 if role == "assistant":
-                    return {"ts": ts, "state": "streaming", "tool": ""}
+                    return {"ts": ts, "state": STATE_STREAMING, "tool": ""}
                 if role == "user":
-                    return {"ts": ts, "state": "user_msg", "tool": ""}
+                    return {"ts": ts, "state": STATE_USER_MSG, "tool": ""}
         elif typ == "event_msg":
             pt = payload.get("type")
             if pt == "task_started":
                 return {"ts": ts, "state": "running", "tool": ""}
             if pt == "task_complete":
-                return {"ts": ts, "state": "idle", "tool": ""}
+                return {"ts": ts, "state": STATE_IDLE, "tool": ""}
         return None
 
 
@@ -264,8 +273,8 @@ class CodexSource:
         lines = data.splitlines()
         return size, lines
 
-    def update(self):
-        """采样一次，返回合并后的 (state, tool_name, last_change_ts)。"""
+    def update(self, snapshot=None):
+        """采样一次，返回合并后的 (state, tool_name, last_change_ts)。snapshot 参数仅为接口统一，Codex 源不使用。"""
         now = time.time()
 
         # 清理已删除/轮转的旧会话文件，防止 _files 无限增长
@@ -309,14 +318,14 @@ class CodexSource:
             last_ts = evt["ts"] or 0.0
 
             # 安全网：非 idle 且长时间无新事件 → 视为空闲（防崩溃/卡死残留）
-            if state in ("thinking", "streaming", "running") and last_ts:
+            if state in (STATE_THINKING, STATE_STREAMING, "running") and last_ts:
                 age = now - last_ts
                 if age > self.idle_stale:
                     if self.verbose:
                         print(f"[codex] {path} {age:.0f}s 无新事件 → 视为 idle")
-                    state = "idle"
+                    state = STATE_IDLE
 
-            if state == "idle":
+            if state == STATE_IDLE:
                 continue
             if best is None or last_ts > best[0]:
                 best = (last_ts, state, tool)
@@ -328,11 +337,51 @@ class CodexSource:
                 if st["latest"] and st["latest"]["ts"] > latest_ts:
                     latest_ts = st["latest"]["ts"]
             self._last_change = latest_ts
-            return "idle", "", latest_ts
+            return STATE_IDLE, "", latest_ts
 
         last_ts, state, tool = best
         self._last_change = last_ts
         return state, tool, last_ts
+
+
+# ============================================================
+# 共享进程快照（性能优化）
+# ============================================================
+class ProcessSnapshot:
+    """一次采样共享的进程快照。
+
+    所有进程源共用一次 psutil.process_iter + EnumWindows，
+    避免每个源每周期重复枚举全部进程/窗口（源多时 CPU 开销显著）。
+    """
+
+    __slots__ = ("procs_by_name", "titles_by_pid")
+
+    def __init__(self):
+        self.procs_by_name = {}   # 规范化进程名 -> [Process]
+        self.titles_by_pid = {}   # pid -> [窗口标题]
+
+    @classmethod
+    def capture(cls, process_names):
+        """按进程名集合一次性枚举进程 + 窗口标题。"""
+        snap = cls()
+        if not psutil or not process_names:
+            return snap
+        names = {_norm_proc(n) for n in process_names}
+        procs = []
+        try:
+            for p in psutil.process_iter(["pid", "name"]):
+                try:
+                    nm = _norm_proc(p.info.get("name"))
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+                if nm in names:
+                    snap.procs_by_name.setdefault(nm, []).append(p)
+                    procs.append(p)
+        except Exception:
+            pass
+        if procs and _HAS_WIN32:
+            snap.titles_by_pid = _get_process_window_titles_map([p.pid for p in procs])
+        return snap
 
 
 # ============================================================
@@ -360,7 +409,7 @@ class ProcessSource:
             idle_delay=DEFAULT_PROCESS_IDLE_DELAY,
         )
         self._last_change = 0.0
-        self._last_state = "idle"
+        self._last_state = STATE_IDLE
         self._warmup = 3
         self._active_streak = 0  # 连续活动采样计数，达到 MIN_ACTIVE_STREAK 才显示非 idle
         self._last_titles = []   # 上次采样的窗口标题，用于检测标题变化
@@ -379,8 +428,7 @@ class ProcessSource:
                 continue
         return out
 
-    def _sample(self):
-        procs = self._get_processes()
+    def _sample(self, procs):
         now = time.time()
         cur_net, cur_cpu = {}, {}
         for p in procs:
@@ -410,18 +458,27 @@ class ProcessSource:
         self._last_net, self._last_cpu, self._last_time = cur_net, cur_cpu, now
         return net_bytes, cpu_pct, len(procs)
 
-    def update(self):
+    def update(self, snapshot=None):
         if not psutil:
-            return "idle", "", 0.0
-        net_bytes, cpu_pct, proc_count = self._sample()
+            return STATE_IDLE, "", 0.0
+        # 优先使用共享快照（每周期一次枚举，所有进程源共用，显著降低 CPU）；
+        # 无快照时（独立运行）回退为本源单独枚举
+        if snapshot is not None:
+            procs = []
+            for nm in self.processes:
+                procs.extend(snapshot.procs_by_name.get(nm, []))
+            titles = []
+            for p in procs:
+                titles.extend(snapshot.titles_by_pid.get(p.pid, []))
+        else:
+            procs = self._get_processes()
+            titles_map = _get_process_window_titles_map([p.pid for p in procs])
+            titles = [t for lst in titles_map.values() for t in lst]
+        net_bytes, cpu_pct, proc_count = self._sample(procs)
         # 窗口标题检测：关键词匹配 OR 标题变化（比纯CPU更直接，豆包生成时标题可能变化但不含关键词）
         # IDE 类工具（Cursor/VSCode）切文件时标题频繁变化，应关闭 detect_title_change 防误触发
-        procs = self._get_processes()
-        pids = [p.pid for p in procs]
-        titles = _get_process_window_titles(pids)
         title_keyword = _window_title_is_active(titles) if self.detect_title_keyword else False
         title_changed = _titles_changed(self._last_titles, titles) if self.detect_title_change else False
-        title_active = title_keyword or title_changed
         self._last_titles = list(titles)
 
         if self._warmup > 0:
@@ -433,12 +490,12 @@ class ProcessSource:
         # 标题关键词（如"正在生成"）是强信号，直接判定 thinking
         # 标题变化（切会话/通知）是弱信号，和 CPU 一样走 active_streak 过滤
         if title_keyword:
-            state = "thinking"
+            state = STATE_THINKING
             self._active_streak = min(self._active_streak + 1, MIN_ACTIVE_STREAK)
-        elif title_changed or state != "idle":
+        elif title_changed or state != STATE_IDLE:
             self._active_streak += 1
             if self._active_streak < MIN_ACTIVE_STREAK:
-                state = "idle"  # 活动还不够持续，压制为 idle
+                state = STATE_IDLE  # 活动还不够持续，压制为 idle
         else:
             self._active_streak = 0
 
@@ -497,7 +554,7 @@ class BridgePusher:
             return False
         self._last_key = key
 
-        if state == "tool_call":
+        if state == STATE_TOOL_CALL:
             r = self._post("/api/tool/start", {"name": tool_name or app_name})
         else:
             if state == "running":
@@ -505,14 +562,14 @@ class BridgePusher:
             else:
                 state_path = state
             body = {}
-            if state == "idle":
+            if state == STATE_IDLE:
                 # 空闲：带上 sourceType 让桥接判断是否该大笑；
                 # 始终清空 lastTool，避免系统事件标签（如"在听音乐"）残留
                 body = {"sourceType": source_type, "lastTool": ""}
             r = self._post(f"/api/state/{state_path}", body)
 
             # 非结束态：把软件名写到状态卡（🛠 豆包 / 🛠 Codex）
-            if state not in ("idle", "task_done", "error"):
+            if state not in (STATE_IDLE, STATE_TASK_DONE, STATE_ERROR):
                 label = tool_name if tool_name and source_type == "codex" else app_name
                 self._post("/api/state", {"state": state, "lastTool": label or ""})
 
@@ -592,6 +649,7 @@ def run_forever(pusher, sources, interval=DEFAULT_INTERVAL, stop_event=None, ver
     last_active = None  # (state, tool, app_name, source_type)
     last_src_type = "process"  # 最近一次活跃来源类型（兜底按进程源处理）
     active_sys_evt = None  # (evt_dict, start_time) — 正在显示的系统事件
+    proc_sources = [s for s in sources if isinstance(s, ProcessSource)]  # 进程源（共享快照）
     try:
         while True:
             if stop_event is not None and stop_event.is_set():
@@ -600,10 +658,15 @@ def run_forever(pusher, sources, interval=DEFAULT_INTERVAL, stop_event=None, ver
             # 每周期累计用户活跃时间（久坐检测，与 AI 状态无关）
             sys_mon.tick()
 
+            # 进程源共享一次枚举（process_iter + EnumWindows），避免每源重复扫描
+            snapshot = ProcessSnapshot.capture(
+                [nm for s in proc_sources for nm in s.processes]
+            ) if proc_sources else None
+
             best = None  # 高优先级且最近有动静的非空闲源
             for s in sources:
-                state, tool, last_ts = s.update()
-                if state == "idle":
+                state, tool, last_ts = s.update(snapshot)
+                if state == STATE_IDLE:
                     continue
                 # 优先级高的源直接胜出；同优先级取最近
                 if best is None or s.priority > best[4] or (
@@ -628,13 +691,13 @@ def run_forever(pusher, sources, interval=DEFAULT_INTERVAL, stop_event=None, ver
                     else:
                         active_sys_evt = None
                         # 系统事件结束：用 system 源推 idle，避免被误判为"AI 一轮完成"触发大笑
-                        pusher.push("idle", "", "", "system")
-                        last_active = ("idle", "", "", "system")
+                        pusher.push(STATE_IDLE, "", "", "system")
+                        last_active = (STATE_IDLE, "", "", "system")
                         last_src_type = "system"
                 else:
-                    key = ("idle", "", "", last_src_type)
+                    key = (STATE_IDLE, "", "", last_src_type)
                     if key != last_active:
-                        pusher.push("idle", "", "", last_src_type)
+                        pusher.push(STATE_IDLE, "", "", last_src_type)
                         last_active = key
             else:
                 # === AI 活跃中 ===

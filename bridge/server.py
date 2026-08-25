@@ -23,6 +23,8 @@ if _HELPER not in sys.path:
 from state_table import (SESSION_STATES, STATE_ERROR, STATE_IDLE, STATE_STREAMING,
                          STATE_TASK_DONE, STATE_THINKING, STATE_TOOL_CALL, STATE_USER_MSG)
 
+from packs import PackLoader
+
 # ============================================================
 # 状态定义（与 host/index.js 完全一致）
 # ============================================================
@@ -56,58 +58,6 @@ ROUND_STALE_MS = 15000
 
 def _now_ms():
     return int(time.time() * 1000)
-
-
-# ============================================================
-# 表情包注册表（与 host/index.js 逻辑对齐）
-# ============================================================
-class PackRegistry:
-    def __init__(self, packs_dir):
-        self.packs_dir = packs_dir
-        self.packs_dirs = [packs_dir] if isinstance(packs_dir, str) else list(packs_dir or [])
-        self.packs = {}
-        self.scan()
-
-    def scan(self):
-        self.packs = {}
-        for base in self.packs_dirs:
-            if not os.path.isdir(base):
-                continue
-            for name in os.listdir(base):
-                pack_dir = os.path.join(base, name)
-                manifest_path = os.path.join(pack_dir, "pack.json")
-                if not os.path.isfile(manifest_path):
-                    continue
-                try:
-                    with open(manifest_path, "r", encoding="utf-8") as f:
-                        manifest = json.load(f)
-                    if not manifest.get("id"):
-                        continue
-                    if manifest["id"] in self.packs:
-                        continue  # 同名包已被更高优先级目录加载
-                    manifest["dir"] = name
-                    manifest.setdefault("states", {})
-                    manifest.setdefault("bubbles", {})
-                    manifest.setdefault("clickBubbles", [])
-                    manifest.setdefault("thinkingLines", [])
-                    manifest.setdefault("laugh", {})
-                    self.packs[manifest["id"]] = manifest
-                except Exception:
-                    continue
-
-    def get(self, pack_id):
-        return self.packs.get(pack_id) or self.packs.get(DEFAULT_PACK_ID)
-
-    def list(self):
-        return [
-            {
-                "id": p["id"],
-                "name": p.get("name", p["id"]),
-                "emoji": p.get("emoji", "🐾"),
-                "version": p.get("version", ""),
-            }
-            for p in self.packs.values()
-        ]
 
 
 # ============================================================
@@ -237,10 +187,10 @@ def _build_state_msg(session, pack_registry):
         "packId": session.pack_id,
         "toolCount": session.tool_count,
         "lastTool": session.last_tool_name or "",
-        "bubbles": pack.get("bubbles", {}) if pack else {},
-        "clickBubbles": pack.get("clickBubbles", []) if pack else [],
-        "laugh": pack.get("laugh", {}) if pack else {},
-        "thinkingLines": pack.get("thinkingLines", []) if pack else [],
+        "bubbles": pack.bubbles if pack else {},
+        "clickBubbles": pack.click_bubbles if pack else [],
+        "laugh": pack.laugh if pack else {},
+        "thinkingLines": pack.thinking_lines if pack else [],
         "timestamp": _now_ms(),
     }
 
@@ -479,8 +429,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 elif state == STATE_IDLE:
                     # agent 回到 idle：
                     # - Codex 精确源：本轮用过工具 → task_done 大笑
-                    # - 进程源（豆包等）：从 thinking/streaming 转 idle 且持续超过 4 秒才算完成一轮
-                    #   （CPU 阈值 6%，配合 30 秒大笑冷却防误触发）
+                    # - 进程源（豆包等）：从 thinking/streaming 转 idle 且持续超过 5 秒才算完成一轮
+                    #   （CPU 阈值 8%，idle_delay 2s，MIN_ACTIVE_STREAK 3，配合 30 秒大笑冷却防误触发）
                     if "lastTool" in (data or {}):
                         session.last_tool_name = data.get("lastTool") or ""
                     prev = session.state
@@ -599,7 +549,7 @@ def _laugh_duration_ms(session, pack_registry):
     try:
         pack = pack_registry.get(session.pack_id) if pack_registry else None
         if pack:
-            d = int((pack.get("laugh") or {}).get("duration_ms", 0) or 0)
+            d = int(pack.laugh.get("duration_ms", 0) or 0)
             if d > 0:
                 return d
     except Exception:
@@ -633,7 +583,7 @@ class BridgeServer(HTTPServer):
         super().__init__(("127.0.0.1", port), BridgeHandler)
         self.root_dir = root_dir
         self.packs_dir = packs_dir or os.path.join(root_dir, "packs")
-        self.packs = PackRegistry(self.packs_dir)
+        self.packs = PackLoader(self.packs_dir)
         self.min_display_ms = min_display_ms
         # 状态变化回调：立即切换或延迟切换到期时，自动推送给 helper
         def _on_change(session):
@@ -674,7 +624,7 @@ def main():
     print(f"[bridge] HTTP 地址: http://127.0.0.1:{args.port}")
     print(f"[bridge] helper 来源: {exe_path or 'python helper/main.py'}")
     print(f"[bridge] 最小显示时间: {args.min_display} ms")
-    print(f"[bridge] 可用表情包: {', '.join(p['id'] for p in PackRegistry(os.path.join(root_dir, 'packs')).list())}")
+    print(f"[bridge] 可用表情包: {', '.join(p['id'] for p in PackLoader(os.path.join(root_dir, 'packs')).list())}")
     print("=" * 50)
     print("[bridge] 服务已启动，按 Ctrl+C 退出")
     print()

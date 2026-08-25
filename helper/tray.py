@@ -4,6 +4,8 @@
 """
 import os
 
+from state_table import STATE_IDLE
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QMenu, QSystemTrayIcon
@@ -33,7 +35,7 @@ class TrayIcon:
         # 用当前包的空闲素材当托盘图标
         try:
             pack = self.window.pack
-            rel = pack.image_for("idle") if pack else None
+            rel = pack.image_for(STATE_IDLE) if pack else None
             if rel:
                 abs_path = self.window.loader.resolve(pack, rel)
                 if abs_path and os.path.isfile(abs_path):

@@ -9,17 +9,19 @@
 3. pack.json 素材完整性（核心状态必须有图片文件）
 4. config.json 字段合法性
 5. ai_apps.json 格式校验
+6. 目标模块导入冒烟（拦截 import 期错误，如未定义的 os/sys）
 """
+import ast
 import json
 import os
+import subprocess
 import sys
-import py_compile
 
 # 项目根目录（脚本在 scripts/gates/ 下，上两级是根）
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "helper"))
 
-from state_table import ALL_STATES, ASSET_STATES, OPTIONAL_STATES, validate  # noqa: E402
+from state_table import ALL_STATES, ASSET_STATES, validate  # noqa: E402
 
 PASS = 0
 FAIL = 0
@@ -59,9 +61,10 @@ def check_syntax():
 
     for f in py_files:
         try:
-            py_compile.compile(f, doraise=True)
+            with open(f, "r", encoding="utf-8") as fh:
+                ast.parse(fh.read(), filename=f)
             ok(f"语法OK: {os.path.relpath(f, ROOT)}")
-        except py_compile.PyCompileError as e:
+        except SyntaxError as e:
             fail(f"语法错误: {os.path.relpath(f, ROOT)} - {e}")
 
 
@@ -73,7 +76,13 @@ def check_state_names():
     target_files = [
         os.path.join(ROOT, "helper", "pet_window.py"),
         os.path.join(ROOT, "helper", "packs.py"),
+        os.path.join(ROOT, "helper", "main.py"),
+        os.path.join(ROOT, "helper", "tray.py"),
         os.path.join(ROOT, "bridge", "server.py"),
+        os.path.join(ROOT, "bridge", "ai_monitor.py"),
+        os.path.join(ROOT, "bridge", "push.py"),
+        os.path.join(ROOT, "bridge", "system_events.py"),
+        os.path.join(ROOT, "bridge", "auto_monitor.py"),
     ]
     state_calls = {"apply_state", "set_state", "force_set"}
 
@@ -148,6 +157,15 @@ def check_state_names():
                         dict_literals.append(k.value)
         if dict_literals:
             warn(f"{name}: 状态定义字典 key 出现状态名字符串 {sorted(set(dict_literals))}，建议改用 state_table 常量")
+
+        # 4) return 语句返回状态名字符串字面量 → 违反文法单源
+        ret_literals = []
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Return) and isinstance(n.value, ast.Constant) \
+                    and isinstance(n.value.value, str) and n.value.value in ALL_STATES:
+                ret_literals.append(n.value.value)
+        if ret_literals:
+            fail(f"{name}: return 硬编码状态字符串 {sorted(set(ret_literals))}，应改用 state_table 常量")
 
 # ============================================================
 # 3. pack.json 素材完整性
@@ -301,6 +319,35 @@ def check_ai_apps():
 
 
 # ============================================================
+# 6. 目标模块导入冒烟
+# ============================================================
+def check_imports():
+    print("\n=== 6. 目标模块导入冒烟 ===")
+    helper_dir = os.path.join(ROOT, "helper")
+    bridge_dir = os.path.join(ROOT, "bridge")
+    modules = [
+        "pet_window", "packs", "main", "tray",
+        "server", "ai_monitor", "push", "system_events", "auto_monitor",
+    ]
+    code = (
+        "import sys;"
+        "sys.path.insert(0, " + repr(helper_dir) + ");"
+        "sys.path.insert(0, " + repr(bridge_dir) + ");"
+        "import " + ", ".join(modules)
+    )
+    try:
+        sub = subprocess.run([sys.executable, "-c", code],
+                             capture_output=True, text=True, timeout=60)
+        if sub.returncode == 0:
+            ok("9 个目标模块全部可导入")
+        else:
+            err = (sub.stderr or sub.stdout).strip().splitlines()
+            fail("目标模块导入失败: " + (err[-1] if err else "未知错误"))
+    except Exception as e:
+        fail(f"导入冒烟执行异常: {e}")
+
+
+# ============================================================
 # 主入口
 # ============================================================
 def main():
@@ -312,6 +359,7 @@ def main():
     check_packs()
     check_config()
     check_ai_apps()
+    check_imports()
 
     print(f"\n{'='*50}")
     print(f"结果: {PASS} 通过, {FAIL} 失败, {WARNINGS} 警告")

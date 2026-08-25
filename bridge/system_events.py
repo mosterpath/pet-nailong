@@ -11,8 +11,17 @@
 系统事件只在所有 AI 源空闲时生效，不打断 AI 工作状态。
 """
 import os
+import sys
 import time
 from datetime import datetime
+
+# 允许从源码目录直接运行（bridge/ 与 helper/ 同级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_HELPER = os.path.join(os.path.dirname(_HERE), "helper")
+if _HELPER not in sys.path:
+    sys.path.insert(0, _HELPER)
+
+from state_table import STATE_IDLE, STATE_THINKING
 
 try:
     import ctypes
@@ -40,7 +49,7 @@ MUSIC_PROCESSES = {
 SYSTEM_EVENTS = [
     {
         "id": "low_battery",
-        "state": "thinking",
+        "state": STATE_THINKING,
         "label": "电量不足",
         "cooldown": 600,
         "display": 20,
@@ -48,7 +57,7 @@ SYSTEM_EVENTS = [
     },
     {
         "id": "late_night",
-        "state": "idle",
+        "state": STATE_IDLE,
         "label": "深夜了",
         "cooldown": 1800,
         "display": 30,
@@ -56,7 +65,7 @@ SYSTEM_EVENTS = [
     },
     {
         "id": "long_sitting",
-        "state": "thinking",
+        "state": STATE_THINKING,
         "label": "该休息了",
         "cooldown": 3600,
         "display": 25,
@@ -64,7 +73,7 @@ SYSTEM_EVENTS = [
     },
     {
         "id": "music_playing",
-        "state": "idle",
+        "state": STATE_IDLE,
         "label": "在听音乐",
         "cooldown": 300,
         "display": 15,

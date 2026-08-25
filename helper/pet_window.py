@@ -16,11 +16,11 @@ import sys
 
 from PyQt5.QtCore import QPoint, QPropertyAnimation, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
-from PyQt5.QtWidgets import (QApplication, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
+from PyQt5.QtWidgets import (QApplication, QGraphicsOpacityEffect,
                              QGraphicsScene, QGraphicsView, QLabel, QMessageBox,
                              QPushButton, QVBoxLayout, QWidget, QSystemTrayIcon, QMenu, QAction)
 
-from animations import (BounceAnimator, IdleAnimator, PetGroup, PetSprite,
+from animations import (BounceAnimator, PetGroup, PetSprite,
                         ShakeAnimator, SwayAnimator, WalkController)
 
 from state_table import (STATE_ERROR, STATE_IDLE, STATE_STREAMING, STATE_TASK_DONE,
@@ -1002,9 +1002,11 @@ class PetWindow(QWidget):
             return
         if getattr(self, "_bubble_display", "all") == "off":
             return
+        # 气泡最大文本宽度 = 宠物窗口宽度 - 左右边距(8) - 气泡左右padding
+        # 确保气泡总宽（文本+padding）不超出宠物窗口
+        avail = self.width() - 8 - self.bubble._padding_x * 2
+        self.bubble._max_width = max(60, avail)
         self.bubble.set_scale(getattr(self, "_bubble_scale", 1.0))
-        # 气泡最大宽度 = 宠物窗口宽度 - 8px 边距，确保不被窗口裁剪
-        self.bubble._max_width = max(120, self.width() - 8)
         self.bubble.set_text(text, style_key, typewriter=typewriter)
         bw = self.bubble.width()
         # 水平居中，确保不溢出窗口左右边界

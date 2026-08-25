@@ -31,7 +31,6 @@ for _p in (_HERE, os.path.join(_ROOT, "bridge")):
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
-import protocol
 from packs import PackLoader
 from pet_window import PetWindow
 from tray import TrayIcon

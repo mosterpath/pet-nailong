@@ -19,10 +19,19 @@
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
+
+# 允许从源码目录直接运行（bridge/ 与 helper/ 同级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_HELPER = os.path.join(os.path.dirname(_HERE), "helper")
+if _HELPER not in sys.path:
+    sys.path.insert(0, _HELPER)
+
+from state_table import STATE_IDLE, STATE_STREAMING, STATE_THINKING
 
 try:
     import psutil
@@ -120,7 +129,7 @@ class StateInferrer:
         self.cpu_threshold = cpu_threshold
         self.idle_delay = idle_delay
         self.state_hold = state_hold
-        self.state = "idle"
+        self.state = STATE_IDLE
         self._last_active_time = 0
         self._last_state_change = 0
 
@@ -138,13 +147,13 @@ class StateInferrer:
         if active:
             # 工作中：网络+CPU都高 → streaming（渲染输出）；否则 → thinking
             if network_bytes > self.net_threshold and cpu_percent > self.cpu_threshold:
-                new_state = "streaming"
+                new_state = STATE_STREAMING
             else:
-                new_state = "thinking"
+                new_state = STATE_THINKING
         else:
             # 活动停止后延迟转 idle
             if now - self._last_active_time > self.idle_delay:
-                new_state = "idle"
+                new_state = STATE_IDLE
             else:
                 new_state = self.state  # 保持
 
@@ -175,7 +184,7 @@ class AutoPusher:
             return True  # 状态没变，不重复推送
         try:
             data = None
-            if state == "idle":
+            if state == STATE_IDLE:
                 # 进程源空闲：标记 sourceType，桥接识别「刚结束一轮流式回复」→ task_done 大笑
                 data = json.dumps({"sourceType": "process"}).encode("utf-8")
             req = urllib.request.Request(
