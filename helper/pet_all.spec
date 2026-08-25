@@ -19,7 +19,7 @@ a = Analysis(
         (os.path.join(ROOT, "bridge", "auto_monitor.py"), "bridge"),
         (os.path.join(ROOT, "bridge", "ai_apps.json"), "bridge"),
     ],
-    hiddenimports=["psutil"],
+    hiddenimports=["psutil", "PyQt5.QtNetwork", "pack_editor"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

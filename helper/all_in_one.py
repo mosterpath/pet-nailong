@@ -176,6 +176,7 @@ def main():
     _clear_user_exit()  # 启动时清除上次的用户退出标记
     app = QApplication(sys.argv[:1])
     app.setApplicationName("pet-nailong")
+    app.setQuitOnLastWindowClosed(False)  # 托盘应用：窗口关闭不退出，防止 setWindowFlags 等意外触发退出
 
     packs_dir = _default_packs_dir()
     loader = PackLoader(packs_dir)

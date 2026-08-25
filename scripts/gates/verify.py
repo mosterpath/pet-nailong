@@ -78,6 +78,7 @@ def check_state_names():
         os.path.join(ROOT, "helper", "packs.py"),
         os.path.join(ROOT, "helper", "main.py"),
         os.path.join(ROOT, "helper", "tray.py"),
+        os.path.join(ROOT, "helper", "pack_editor.py"),
         os.path.join(ROOT, "bridge", "server.py"),
         os.path.join(ROOT, "bridge", "ai_monitor.py"),
         os.path.join(ROOT, "bridge", "push.py"),
@@ -152,9 +153,12 @@ def check_state_names():
         dict_literals = []
         for n in ast.walk(tree):
             if isinstance(n, ast.Dict) and id(n) in assigned_dicts and id(n) not in style_nodes:
-                for k in n.keys:
-                    if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value in ALL_STATES:
-                        dict_literals.append(k.value)
+                keys = [k for k in n.keys if isinstance(k, ast.Constant) and isinstance(k.value, str)]
+                state_keys = [k.value for k in keys if k.value in ALL_STATES]
+                # 比例启发式：仅当超过一半 key 是状态名才提示，
+                # 避免误报 FOLDER_MAP/Toast.COLORS/pack.json 字段这类恰好同名的 key
+                if keys and len(state_keys) > len(keys) / 2:
+                    dict_literals.extend(state_keys)
         if dict_literals:
             warn(f"{name}: 状态定义字典 key 出现状态名字符串 {sorted(set(dict_literals))}，建议改用 state_table 常量")
 
@@ -245,6 +249,7 @@ def check_config():
         "microAction", "reduceMotion", "petX", "petY", "mode",
         "clickThrough", "alwaysOnTop", "showBubble",
         "size", "topmost", "pos", "version",
+        "cardVisible", "packId",
     }
     for key in cfg:
         if key in known_fields:
@@ -326,7 +331,7 @@ def check_imports():
     helper_dir = os.path.join(ROOT, "helper")
     bridge_dir = os.path.join(ROOT, "bridge")
     modules = [
-        "pet_window", "packs", "main", "tray",
+        "pet_window", "packs", "main", "tray", "pack_editor",
         "server", "ai_monitor", "push", "system_events", "auto_monitor",
     ]
     code = (

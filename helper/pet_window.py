@@ -15,16 +15,17 @@ import random
 import sys
 
 from PyQt5.QtCore import QPoint, QPropertyAnimation, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
+from PyQt5.QtGui import QColor, QFont, QFontMetrics, QMovie, QPainter, QPainterPath, QPen, QPixmap
 from PyQt5.QtWidgets import (QApplication, QGraphicsOpacityEffect,
                              QGraphicsScene, QGraphicsView, QLabel, QMessageBox,
-                             QPushButton, QVBoxLayout, QWidget, QSystemTrayIcon, QMenu, QAction)
+                             QPushButton, QVBoxLayout, QWidget)
 
 from animations import (BounceAnimator, PetGroup, PetSprite,
                         ShakeAnimator, SwayAnimator, WalkController)
 
 from state_table import (STATE_ERROR, STATE_IDLE, STATE_STREAMING, STATE_TASK_DONE,
                          STATE_THINKING, STATE_TOOL_CALL, STATE_USER_MSG)
+# pack_editor 延迟导入：避免启动时加载 PyQt5.QtNetwork 导致某些环境下崩溃
 
 SPRITE_W = 175          # 精灵显示宽度（默认档位）
 SIZE_PRESETS = {"small": 150, "medium": 190, "large": 260}
@@ -617,6 +618,7 @@ class PetWindow(QWidget):
 
         self._build_ui()
         self._apply_window_flags()
+        self._pack_editor = None  # 表情包编辑器窗口引用（防止被 GC）
         self._apply_size()
         self._apply_saved_position()
         self.walk = WalkController(self, self.group)
@@ -666,96 +668,55 @@ class PetWindow(QWidget):
         return super().nativeEvent(eventType, message)
 
     # ----------------------------------------------------------
-    # 系统托盘
+    # 设置面板
     # ----------------------------------------------------------
-    def _icon_path(self):
-        """解析托盘图标路径：源码模式用项目 icons/，打包模式用 _MEIPASS。"""
-        candidates = []
-        if hasattr(sys, "_MEIPASS"):
-            candidates.append(os.path.join(sys._MEIPASS, "icons", "pet-icon.ico"))
-        # 源码模式：helper/ 的上一级是项目根
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        candidates.append(os.path.join(project_root, "icons", "pet-icon.ico"))
-        candidates.append(os.path.join(project_root, "icons", "pet-icon.png"))
-        for p in candidates:
-            if os.path.isfile(p):
-                return p
-        return None
-
-    def _init_tray(self):
-        """创建系统托盘图标：左键显隐桌宠，右键菜单。"""
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            self._tray = None
-            return
-        icon_path = self._icon_path()
-        icon = QIcon(icon_path) if icon_path else self.windowIcon()
-        self._tray = QSystemTrayIcon(icon, self)
-        self._tray.setToolTip("奶娃桌宠")
-        # 左键点击：显示/隐藏
-        self._tray.activated.connect(self._on_tray_activated)
-        # 右键菜单
-        menu = QMenu()
-        menu.setStyleSheet(
-            "QMenu { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 4px; }"
-            "QMenu::item { padding: 6px 20px; border-radius: 4px; font-size: 13px; }"
-            "QMenu::item:selected { background: #eef1ff; }"
-            "QMenu::separator { height: 1px; background: #eee; margin: 4px 8px; }"
-        )
-        act_show = QAction("显示/隐藏桌宠", self)
-        act_show.triggered.connect(self.toggle_visible)
-        menu.addAction(act_show)
-        menu.addSeparator()
-        act_laugh = QAction("让奶龙笑一个", self)
-        act_laugh.triggered.connect(self.trigger_laugh)
-        menu.addAction(act_laugh)
-        act_mute = QAction("大笑静音", self, checkable=True)
-        act_mute.setChecked(self._muted)
-        act_mute.triggered.connect(self.toggle_mute)
-        menu.addAction(act_mute)
-        act_autostart = QAction("开机启动", self, checkable=True)
-        act_autostart.setChecked(self._autostart_enabled())
-        act_autostart.triggered.connect(self.toggle_autostart)
-        menu.addAction(act_autostart)
-        menu.addSeparator()
-        act_settings = QAction("设置…", self)
-        act_settings.triggered.connect(self._open_settings)
-        menu.addAction(act_settings)
-        act_about = QAction("关于", self)
-        act_about.triggered.connect(self._show_about)
-        menu.addAction(act_about)
-        menu.addSeparator()
-        act_quit = QAction("退出", self)
-        act_quit.triggered.connect(self.quit_pet)
-        menu.addAction(act_quit)
-        self._tray.setContextMenu(menu)
-        self._tray.show()
-        self._tray_menu = menu
-        self._tray_act_mute = act_mute
-        self._tray_act_autostart = act_autostart
-
-    def _on_tray_activated(self, reason):
-        """托盘左键：显示/隐藏；双击：大笑。"""
-        if reason == QSystemTrayIcon.Trigger:  # 左键单击
-            self.toggle_visible()
-        elif reason == QSystemTrayIcon.DoubleClick:
-            self.trigger_laugh()
-
-    def _refresh_tray_checks(self):
-        """同步托盘菜单的勾选状态（静音/开机启动被其他方式改变时调用）。"""
-        if not getattr(self, "_tray", None):
-            return
-        try:
-            self._tray_act_mute.setChecked(self._muted)
-            self._tray_act_autostart.setChecked(self._autostart_enabled())
-        except Exception:
-            pass
-
     def _open_settings(self):
         """打开设置面板。"""
         if not hasattr(self, "_settings_dlg") or self._settings_dlg is None:
             self._settings_dlg = SettingsDialog(self)
         self._settings_dlg._load_values()
         self._settings_dlg.show_at_cursor()
+
+    # ----------------------------------------------------------
+    # 表情包编辑器（集成模式，同进程打开）
+    # ----------------------------------------------------------
+    def open_pack_editor(self):
+        """右键菜单打开表情包编辑器。同进程内创建窗口，不启动新进程。"""
+        if self._pack_editor is not None:
+            # 已打开：激活到前台
+            self._pack_editor.show()
+            self._pack_editor.raise_()
+            self._pack_editor.activateWindow()
+            return
+        # 输出目录：始终指向用户可写目录（exe 同目录 packs/，不存在则创建）
+        if hasattr(sys, "_MEIPASS"):
+            output_dir = os.path.join(os.path.dirname(sys.executable), "packs")
+        else:
+            output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "packs")
+        os.makedirs(output_dir, exist_ok=True)
+        from pack_editor import open_editor as _open_pack_editor_window
+        self._pack_editor = _open_pack_editor_window(
+            output_dir=output_dir,
+            on_pack_created=self._on_pack_created,
+        )
+        # 窗口关闭时清空引用（WA_DeleteOnClose 未设时通常不触发，作为安全网）
+        self._pack_editor.destroyed.connect(self._on_editor_destroyed)
+
+    def _on_editor_destroyed(self):
+        self._pack_editor = None
+
+    def _on_pack_created(self, pack_id):
+        """编辑器生成新表情包后：重载包列表，自动切换到新包。"""
+        self.loader.scan()
+        pack = self.loader.get(pack_id)
+        if not pack:
+            return
+        if pack_id == self.pack_id:
+            # 覆盖了当前包：重新加载素材（switch_pack 会因 id 相同跳过）
+            self.pack = pack
+            self.apply_pack()
+        else:
+            self.switch_pack(pack_id)
 
     # ----------------------------------------------------------
     # 初始化
@@ -878,6 +839,10 @@ class PetWindow(QWidget):
             # 只刷新状态卡，避免反复大笑
             self._update_card()
             return
+        # 通用重复状态检测：状态未变时不重建 GIF/静态图，避免 QMovie 反复创建销毁引发 C++ 层崩溃
+        if state == prev_state:
+            self._update_card()
+            return
         if self.pack is None:
             return
         # 非大笑状态先停音频（大笑状态会播放新音频）
@@ -944,6 +909,8 @@ class PetWindow(QWidget):
         # 校验 GIF 有效性：损坏/不支持的文件 frameCount 为 0
         if movie.frameCount() == 0:
             print("[pet-helper] GIF 加载失败，回退静态图:", abs_path, flush=True)
+            # 回退：尝试作为静态图显示（PNG/JPG 等单帧图片）
+            self._show_image(abs_path)
             return
         movie.frameChanged.connect(self._on_movie_frame)
         movie.setScaledSize(self.sprite_pixmap.size() if self.sprite_pixmap else None)
@@ -966,6 +933,7 @@ class PetWindow(QWidget):
                 self._movie.frameChanged.disconnect(self._on_movie_frame)
             except (TypeError, RuntimeError):
                 pass  # 信号未连接或对象已失效
+            self._movie.deleteLater()  # 安全删除：等事件循环处理完 pending 事件再销毁 C++ 对象
             self._movie = None
 
     def _fallback_pixmap(self):
@@ -1253,6 +1221,7 @@ class PetWindow(QWidget):
         items.append(("check", "大笑静音", self._muted, self.toggle_mute))
         items.append(("check", "开机启动", self._autostart_enabled(), self.toggle_autostart))
         items.append(("item", "设置…", self._open_settings))
+        items.append(("item", "表情包编辑器", self.open_pack_editor))
         items.append(("item", "关于", self._show_about))
         items.append(("sep",))
         items.append(("item", "隐藏", self.hide_pet))
@@ -1306,7 +1275,6 @@ class PetWindow(QWidget):
                     winreg.SetValueEx(k, AUTOSTART_VALUE, 0, winreg.REG_SZ, self._autostart_command())
                     self.show_bubble("已开启开机启动", interaction=True)
             self.event_out.emit({"kind": "event", "name": "autostart", "on": not enabled})
-            self._refresh_tray_checks()
         except Exception:  # noqa: BLE001
             self.show_bubble("开机启动设置失败", interaction=True)
 
@@ -1349,7 +1317,6 @@ class PetWindow(QWidget):
             self.show_bubble("已静音（只笑不叫）", interaction=True)
         else:
             self.show_bubble("取消静音", interaction=True)
-        self._refresh_tray_checks()
 
     # ----------------------------------------------------------
     # 菜单动作
@@ -1411,6 +1378,7 @@ class PetWindow(QWidget):
         self.event_out.emit({"kind": "event", "name": "hidden"})
 
     def quit_pet(self):
+        self._user_quit = True
         self._mark_user_exit()
         self.event_out.emit({"kind": "event", "name": "exited"})
         self.close()
@@ -1559,6 +1527,11 @@ class PetWindow(QWidget):
             pass
 
     def closeEvent(self, event):
+        # 只有用户主动退出（quit_pet 设置 _user_quit）才真正关闭并退出应用；
+        # 其他原因触发的 close（setWindowFlags 重建句柄、系统事件等）一律忽略，防止意外退出。
+        if not getattr(self, "_user_quit", False):
+            event.ignore()
+            return
         self._mark_user_exit()
         self._unregister_hotkey()
         self._stop_movers()
@@ -1567,11 +1540,6 @@ class PetWindow(QWidget):
         if self._audio_player:
             try:
                 self._audio_player.stop()
-            except Exception:
-                pass
-        if getattr(self, "_tray", None):
-            try:
-                self._tray.hide()
             except Exception:
                 pass
         self._save_config()

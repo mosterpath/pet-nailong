@@ -1,10 +1,19 @@
 {
   "mode": "stay",
-  "size": "large",
+  "size": "small",
   "clickThrough": false,
   "topmost": true,
+  "cardVisible": true,
+  "muted": false,
+  "bubbleScale": 1.0,
+  "bubbleDuration": 6,
+  "bubbleDisplay": "all",
+  "edgeSnap": true,
+  "microAction": "medium",
+  "reduceMotion": false,
+  "packId": "nailong",
   "pos": {
-    "x": 2105,
-    "y": 1051
+    "x": 2167,
+    "y": 796
   }
 }

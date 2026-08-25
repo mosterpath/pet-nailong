@@ -69,6 +69,7 @@ class TrayIcon:
         mute_act.setCheckable(True)
         mute_act.setChecked(self.window._muted)
         self._menu.addAction("设置…", self.window._open_settings)
+        self._menu.addAction("表情包编辑器", self.window.open_pack_editor)
         self._menu.addAction("关于", self.window._show_about)
         self._menu.addSeparator()
         self._menu.addAction("退出", self.window.quit_pet)
