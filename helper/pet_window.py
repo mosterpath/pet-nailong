@@ -1003,10 +1003,13 @@ class PetWindow(QWidget):
         if getattr(self, "_bubble_display", "all") == "off":
             return
         self.bubble.set_scale(getattr(self, "_bubble_scale", 1.0))
+        # 气泡最大宽度 = 宠物窗口宽度 - 8px 边距，确保不被窗口裁剪
+        self.bubble._max_width = max(120, self.width() - 8)
         self.bubble.set_text(text, style_key, typewriter=typewriter)
         bw = self.bubble.width()
-        x = (self.width() - bw) // 2
-        self.bubble.move(max(4, x), 4)
+        # 水平居中，确保不溢出窗口左右边界
+        x = max(4, min((self.width() - bw) // 2, self.width() - bw - 4))
+        self.bubble.move(x, 4)
         self._bubble_fade.stop()
         try:
             self._bubble_fade.finished.disconnect()
